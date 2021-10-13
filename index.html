@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Планирование города</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+      integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+      integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+      crossorigin=""
+    ></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <script src="/static/app.js"></script>
+  </head>
+  <body>
+    <section class="section">
+      <div class="block">
+        <div class="has-text-centered is-size-2">
+          Сервис планирования городской инфраструктуры
+        </div>
+      </div>
+      <div class="block">
+        <div class="columns is-vcentered">
+          <div class="column is-6">
+            <div class="field has-addons">
+              <div class="control is-expanded">
+                <div class="select is-fullwidth">
+                  <select id="object_type_select" name="object_type">
+                    <option value="Школа">Школа</option>
+                    <option value="Больница">Больница</option>
+                  </select>
+                </div>
+                <p class="help">Тип объекта для планирования</p>
+              </div>
+              <div class="control">
+                <button type="submit" id="submit" class="button is-primary">
+                  Рассчитать
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="block">
+        <div id="mapid" style="height: 800px"></div>
+      </div>
+    </section>
+  </body>
+</html>
+
