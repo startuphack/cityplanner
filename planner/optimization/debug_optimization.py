@@ -1,5 +1,6 @@
 import typing
 import logging
+from planner.optimization.loaders import load_schools
 
 import pandas as pd
 import numpy as np
@@ -12,7 +13,7 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=lo
 
 
 class ObjectFactory:
-    def __init__(self, max_num_objects, proj_types, squares: typing.List[M.Square]):
+    def __init__(self, max_num_objects, proj_types, squares: typing.List[M.Square], stop_objects: M.StopObjects):
         self.max_num_objects = max_num_objects
         self.proj_types = proj_types
         self.squares = squares
@@ -29,6 +30,7 @@ class ObjectFactory:
 
         self.min_normalization = np.asarray(min_normalization)
         self.max_normalization = np.asarray(max_normalization)
+        self.stop_objects: M.StopObjects = stop_objects
 
     def make_objects_from_point(self, point: np.ndarray):
 
@@ -45,10 +47,15 @@ class ObjectFactory:
             idx += 1
 
             if obj_type < len(self.proj_types):
-                proj = self.proj_types[obj_type]
-                obj = M.TargetObject(obj_lng, obj_lat, proj['num_peoples'], proj)
+                is_stopped = False
+                if self.stop_objects:
+                    is_stopped = bool(self.stop_objects.is_stopped(obj_lat, obj_lng))
 
-                res_objects.append(obj)
+                if not is_stopped:
+                    proj = self.proj_types[obj_type]
+                    obj = M.TargetObject(obj_lng, obj_lat, proj['num_peoples'], proj)
+
+                    res_objects.append(obj)
             else:
                 pass
                 # logging.info(f'fake object')
@@ -61,6 +68,19 @@ class ObjectFactory:
 
 if __name__ == '__main__':
     num_objects = 10
+
+    stop_distances = {
+        'beach': 0.1,  # не менее 300 метров до пляжа
+        'gas-station': 0.05,
+        'industrial-area': 0.05,
+        'nuklear-zone': 0.2,
+        # 'protected-zone': 0.1,
+        'snow-melting-station': 0.1,
+        'transport-nodes': 0.1,
+        'water': 0.1,
+        'highway': 0.05,
+        'Building': 0.05,
+    }
 
     school_projects = [
         {
@@ -93,10 +113,13 @@ if __name__ == '__main__':
         total_number_of_children += number_of_children
 
     print(f'pending place {total_number_of_children} children to schools')
-    num_schools = int(np.ceil(total_number_of_children / 1000)) * 2
+    num_schools = int(np.ceil(total_number_of_children / 1000)) * 3
+    stop_objects = M.StopObjects(stop_distances)
 
-    factory = ObjectFactory(num_schools, proj_types=school_projects, squares=squares)
+    factory = ObjectFactory(num_schools, proj_types=school_projects, squares=squares, stop_objects=stop_objects)
 
+
+    # schools = load_schools()
 
     def evaluator(point):
         target_objects = factory.make_objects_from_point(point)
@@ -107,7 +130,7 @@ if __name__ == '__main__':
         return result
 
 
-    optimizer = Optimizer(factory.dimension(), 2, evaluator, population_size=200, n_jobs = 5)
+    optimizer = Optimizer(factory.dimension(), 2, evaluator, population_size=200, n_jobs=5)
 
     optimizer.run(200)
 

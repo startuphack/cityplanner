@@ -1,5 +1,6 @@
 import typing
 from math import radians
+import logging
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,8 @@ class Square:
         self.lon = lon
         self.lat = lat
         self.num_peoples = num_peoples
-        self.attrs = attrs
+        self.attrs = dict(attrs)
+        self.attrs['full_num_peoples'] = num_peoples
 
     def coords(self):
         return [self.lat, self.lon]
@@ -69,6 +71,7 @@ class Evaluation:
             (obj_num, o.radian_coords()) for obj_num, o in enumerate(self.objects)
             if self.obj_num_index[obj_num]['available'] > 0
         ]
+
         if target_pairs:
             numbers, target_objects = zip(*target_pairs)
             target_objects = np.asarray(target_objects)
@@ -114,15 +117,20 @@ class Evaluation:
             percentiles = [np.inf] * len(self.percentiles_for_evaluation)
 
         lack = max(all_required - all_planned, 0)
+        lack_percent = lack / all_required
+        lack_penalty = 10 * lack_percent
+        lack_penalty *= lack_penalty
 
         result = {
             'total-cost': -total_cost / 10e9,
+            'convenience': -(avg_distance + lack_penalty),
             'avg-distance': -avg_distance,
             'overplanned': overplanned,
             'lack': lack,
-            'lack-percent': lack / all_required,
+            'lack-percent': lack_percent,
             'required': all_required,
             'planned': all_planned,
+            'number-of-schools': len(self.objects)
         }
 
         for p_value, p in zip(percentiles, self.percentiles_for_evaluation):
@@ -207,6 +215,7 @@ class StopObjects:
         self.stop_distance_for_objects = stop_distance_for_objects
         self.geo_tree = None
         self.geo_data = None
+        self.build_stop_index()
 
     def build_stop_index(self):
         geometry_for_index = list()
@@ -216,6 +225,10 @@ class StopObjects:
             for data_type in df.data_type.unique():
                 stop_distance = self.stop_distance_for_objects.get(data_type)
 
+                if stop_distance:
+                    logging.info(f'stop distance = {stop_distance} km for {data_type}')
+                else:
+                    logging.info(f'no stop distance for {data_type}')
                 if stop_distance:
                     data_geometry = df[df.data_type == data_type].geometry
                     centroid = data_geometry.centroid
@@ -234,20 +247,24 @@ class StopObjects:
         for points_data, geometry in zip(geo_points_data, geometry_for_index):
             geo_points += [points_data] * len(geometry)
 
-        self.merged_geometry = pd.concat(geometry_for_index)
+        self.merged_geometry = pd.concat(geometry_for_index, ignore_index=True)
         self.geo_tree = self.merged_geometry.sindex
         self.geo_data = np.asarray(geo_points)
 
     def is_stopped(self, lat, lon):
         intersection_result = self.geo_tree.intersection([lon, lat])
 
-        all_result = [
-            {
-                'merged_data': m_data,
-                'geom': geom,
-            }
-            for m_data, geom in zip(self.geo_data[intersection_result], self.merged_geometry[intersection_result])
-        ]
+        try:
+            all_result = [
+                {
+                    'merged_data': m_data,
+                    'geom': geom,
+                }
+                for m_data, geom in zip(self.geo_data[intersection_result], self.merged_geometry[intersection_result])
+            ]
+        except:
+
+            raise
 
         return all_result
 
