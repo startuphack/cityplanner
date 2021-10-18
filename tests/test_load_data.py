@@ -24,3 +24,9 @@ def test_load_highways():
 def test_load_water():
     waters = L.load_water()
     assert len(waters) > 0
+
+
+def test_load_all_eco_data():
+    all_eco_data = L.load_all_eco_data()
+
+    assert len(all_eco_data) > 0

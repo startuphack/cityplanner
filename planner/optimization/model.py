@@ -1,10 +1,15 @@
 import typing
+from math import radians
 
 import numpy as np
-from math import radians
-from planner.utils.math import weighted_percentile
+import pandas as pd
+import pygeos
 from sklearn.metrics.pairwise import haversine_distances
 from sklearn.neighbors import BallTree
+
+import planner.optimization.loaders as L
+from planner.utils.geo_utils import EARTH_SIZE, find_buffer_width
+from planner.utils.math import weighted_percentile
 
 
 class Square:
@@ -19,11 +24,6 @@ class Square:
 
     def radian_coords(self):
         return [radians(self.lat), radians(self.lon)]
-
-
-class Atlas:
-    def __init__(self, squares):
-        self.squares = squares
 
 
 class TargetObject(Square):
@@ -190,6 +190,68 @@ class Evaluation:
         return self.get_metrics()
 
 
+class StopObjects:
+    '''
+    ВНИМАНИЕ!!!
+    во всех геоданных сначала идет долгота, а потом широта. для haversine_distance нужно наоборот!!!
+    для проверки нужно менять порядок широты с долготой
+    '''
+    stop_loaders = [
+        L.load_all_eco_data,
+        L.load_water,
+        L.load_highways,
+        L.load_buildings_data,
+    ]
+
+    def __init__(self, stop_distance_for_objects):
+        self.stop_distance_for_objects = stop_distance_for_objects
+        self.geo_tree = None
+        self.geo_data = None
+
+    def build_stop_index(self):
+        geometry_for_index = list()
+        geo_points_data = list()
+        for loader in self.stop_loaders:
+            df = loader()
+            for data_type in df.data_type.unique():
+                stop_distance = self.stop_distance_for_objects.get(data_type)
+
+                if stop_distance:
+                    data_geometry = df[df.data_type == data_type].geometry
+                    centroid = data_geometry.centroid
+                    stop_distance_in_angles = find_buffer_width(
+                        [np.median(centroid.y), np.median(centroid.x)],
+                        stop_distance)
+                    buffered_data_geometry = data_geometry.buffer(stop_distance_in_angles)
+                    geometry_for_index.append(buffered_data_geometry)
+                    geo_points_data.append({
+                        'data_type': data_type,
+                        'distance': stop_distance,
+                        'distance_in_angles': stop_distance_in_angles,
+                    })
+
+        geo_points = []
+        for points_data, geometry in zip(geo_points_data, geometry_for_index):
+            geo_points += [points_data] * len(geometry)
+
+        self.merged_geometry = pd.concat(geometry_for_index)
+        self.geo_tree = self.merged_geometry.sindex
+        self.geo_data = np.asarray(geo_points)
+
+    def is_stopped(self, lat, lon):
+        intersection_result = self.geo_tree.intersection([lon, lat])
+
+        all_result = [
+            {
+                'merged_data': m_data,
+                'geom': geom,
+            }
+            for m_data, geom in zip(self.geo_data[intersection_result], self.merged_geometry[intersection_result])
+        ]
+
+        return all_result
+
+
 if __name__ == '__main__':
     bsas = [-34.83333, -58.5166646]
     paris = [49.0083899664, 2.53844117956]
@@ -197,8 +259,7 @@ if __name__ == '__main__':
     bsas_in_radians = [radians(_) for _ in bsas]
     paris_in_radians = [radians(_) for _ in paris]
     result = haversine_distances([bsas_in_radians, paris_in_radians])
-    print(result[0, 1] * EARTH_SIZE)
-    print(haver_distance(bsas, paris))
+
     # from sklearn.neighbors import BallTree
     # # print (BallTree.valid_metrics)
     # import numpy as np
