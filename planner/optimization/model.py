@@ -29,9 +29,9 @@ class Square:
 
 
 class TargetObject(Square):
-    def __init__(self, lon, lat, num_peoples, project, **attrs):
+    def __init__(self, lon, lat, num_peoples, project=None, **attrs):
         super().__init__(lon, lat, num_peoples, **attrs)
-        self.project = project
+        self.project = project or {'num_peoples': num_peoples}
 
 
 class Evaluation:
@@ -55,15 +55,20 @@ class Evaluation:
             for id, obj in enumerate(self.objects)
         }
 
-        self.squares_data = {
-            id: {
+        self.squares_data = [
+            {
+
                 'obj': square,
                 'num_peoples': square.num_peoples,
             }
-            for id, square in enumerate(self.squares)
-        }
+            for square in self.squares
+        ]
 
         self.reindex()
+
+    def move_data_to_squares(self):
+        for square, square_data in zip(self.squares, self.squares_data):
+            square.num_peoples = square_data['num_peoples']
 
     def reindex(self):
         # Индексируем только то, что нам нужно
@@ -141,13 +146,14 @@ class Evaluation:
     def evaluate(self):
         reindex_required = False
         no_objects = False
-        for square in self.squares:
+
+        for square, square_geo in zip(self.squares_data, self.squares):
 
             if no_objects:
                 break
 
-            if square.num_peoples > 0:
-                required_to_place = square.num_peoples
+            if square['num_peoples'] > 0:
+                required_to_place = square['num_peoples']
                 first_pass = True
                 while True:
                     if (required_to_place == 0) or ((not first_pass) and (not reindex_required)):
@@ -166,7 +172,7 @@ class Evaluation:
 
                     objects_to_query = min(len(self.idx_to_num), self.query_objects)
 
-                    distances, obj_nums = self.obj_geo_index.query([square.radian_coords()], objects_to_query)
+                    distances, obj_nums = self.obj_geo_index.query([square_geo.radian_coords()], objects_to_query)
 
                     if len(obj_nums) == 0:
                         no_objects = True
@@ -191,6 +197,7 @@ class Evaluation:
 
                             obj_info['available'] -= can_place
                             required_to_place -= can_place
+                            square['num_peoples'] -= can_place
 
                             if required_to_place == 0:
                                 break

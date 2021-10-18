@@ -3,6 +3,7 @@ import logging
 from planner.optimization.loaders import load_schools
 
 import pandas as pd
+import geopandas
 import numpy as np
 
 import planner.optimization.model as M
@@ -101,14 +102,15 @@ if __name__ == '__main__':
         },
     ]
 
-    squares_df = pd.read_parquet(files.resources / 'short_shapes.gz.pq')
+    squares_df = geopandas.read_parquet(files.resources / 'short_shapes_geo.gz.pq')
 
     squares = []
     child_part = 0.2
     total_number_of_children = 0
-    for lat, lon, num_peoples in squares_df[['lat', 'lon', 'customers_cnt_home']].values:
+    for num_peoples, geometry in squares_df[['customers_cnt_home', 'geometry']].values:
+        centroid = geometry.centroid
         number_of_children = int(num_peoples * child_part)
-        squares.append(M.Square(lon, lat, number_of_children))
+        squares.append(M.Square(centroid.x, centroid.y, number_of_children))
 
         total_number_of_children += number_of_children
 
@@ -117,9 +119,24 @@ if __name__ == '__main__':
     stop_objects = M.StopObjects(stop_distances)
 
     factory = ObjectFactory(num_schools, proj_types=school_projects, squares=squares, stop_objects=stop_objects)
+    schools = load_schools()
 
+    squares_polygon = squares_df.unary_union
 
-    # schools = load_schools()
+    required_schools = schools[schools.geometry.apply(lambda x: x.intersects(squares_polygon))]
+
+    existed_school_objects = list()
+    for school_geom, number_of_pupils in required_schools[['geometry', 'PupilsQuantity']].values:
+        school_geom_centroid = school_geom.centroid
+        existed_school_objects.append(M.TargetObject(school_geom_centroid.x, school_geom_centroid.y, number_of_pupils))
+
+    existed_evaluation = M.Evaluation(squares, existed_school_objects)
+
+    existed_evaluation_results = existed_evaluation.evaluate()
+
+    existed_evaluation.move_data_to_squares()
+
+    print(existed_evaluation_results)
 
     def evaluator(point):
         target_objects = factory.make_objects_from_point(point)
