@@ -1,8 +1,11 @@
 import numpy as np
+import pickle
+import cloudpickle
 from sklearn.metrics.pairwise import haversine_distances
 from sklearn.neighbors import BallTree
 import pygeos
 import itertools as it
+from shapely.strtree import STRtree
 
 
 def test_ball_tree_index():
@@ -24,6 +27,8 @@ def test_ball_tree_index():
 
 def test_pygeos_tree_index():
     tree = pygeos.STRtree(pygeos.points(np.arange(10), np.arange(10)))
+    bytes = cloudpickle.dumps(tree)
+    tree = cloudpickle.loads(bytes)
     # Query geometries that overlap envelope of input geometries:
     assert tree.query(pygeos.box(2, 2, 4, 4)).tolist() == [2, 3, 4]
     # Query geometries that are contained by input geometry:
@@ -32,6 +37,8 @@ def test_pygeos_tree_index():
     assert tree.query_bulk([pygeos.box(2, 2, 4, 4), pygeos.box(5, 5, 6, 6)]).tolist() == [[0, 0, 0, 1, 1],
                                                                                           [2, 3, 4, 5, 6]]
     assert tree.nearest([pygeos.points(1, 1), pygeos.points(3, 5)]).tolist() == [[0, 1], [1, 4]]
+
+
 
 
 def cartesian_product(*arrays):

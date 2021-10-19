@@ -71,6 +71,9 @@ class OptFitness(base.Fitness):
         self.results = results
 
 
+DEFAULT_BACKEND = Parallel(n_jobs=4, backend='multiprocessing')
+
+
 class Optimizer:
     def __init__(self,
                  problem_size,
@@ -82,13 +85,10 @@ class Optimizer:
                  population_size=100,
                  mutation_percent=1,
                  sigma=None,
-                 n_jobs=1,
+                 backend=DEFAULT_BACKEND,
                  min_batch_size=1,
                  batch_evaluation=False,
-                 verbose=False,
-                 output_file=None,
-                 round_digits=None,
-                 step_listeners=None
+                 round_digits=None
                  ):
         self.problem_size = problem_size
         self.num_objectives = num_objectives
@@ -103,21 +103,16 @@ class Optimizer:
         self.mutation_percent = mutation_percent  # lambda
         self.sigma = sigma or (self.max - self.min) / 3
         self.fitness_history = []
-        self.fitness_stats = [Statistics() for _ in range(self.num_objectives)]
         self.fitness_steps = 0
         self.evaluations = {}
         self.toolbox = None
-        self.stats = None
-        self.logbook = None
         self.batch_evaluation = batch_evaluation
-        self.verbose = verbose
-        self.fitness_history = []
-        self.n_jobs = n_jobs
+        self.backend = backend
         self.min_batch_size = min_batch_size
-        self.output_file = output_file
         self.round_digits = round_digits
 
-        self.step_listeners = step_listeners or []
+    def __getstate__(self):
+        return {}  # only this is needed
 
     def normalize(self, individual):
         new_val = self.min + self.delta * ((1 - np.sin(individual)) / 2)
@@ -143,12 +138,12 @@ class Optimizer:
                 result[ind] = evaluation
                 remains -= 1
 
-        batch_size = max(int(math.ceil(remains / self.n_jobs)), self.min_batch_size)
+        n_jobs = self.backend.n_jobs
+        batch_size = max(int(math.ceil(remains / n_jobs)), self.min_batch_size)
         for_evaluation = ((ind, v) for ind, v in enumerate(vectors) if result[ind] is None)
 
         if remains > 0:
-            with Parallel(n_jobs=self.n_jobs, backend='sequential' if self.n_jobs == 1 else 'multiprocessing') as tp:
-                evaluated_values = tp(
+            evaluated_values = self.backend(
                     delayed(do_evaluate)(self.optimization_target, batch, self.batch_evaluation) for batch in
                     mit.chunked(for_evaluation, batch_size)
                 )
@@ -179,13 +174,7 @@ class Optimizer:
         # Update the strategy with the evaluated individuals
         self.toolbox.update(population)
 
-        record = self.stats.compile(population) if self.stats is not None else {}
-        self.logbook.record(gen=self.fitness_steps, nevals=len(population), **record)
-        if self.verbose:
-            logging.info(self.logbook.stream)
-
         self.fitness_steps += 1
-        self.on_step_complete()
 
     def do_init(self):
         if self.toolbox is not None:
@@ -195,12 +184,6 @@ class Optimizer:
         creator.create('Individual', list, fitness=creator.FitnessMin)
         # The MO-CMA-ES algorithm takes a full population as argument
         self.toolbox = base.Toolbox()
-        self.stats = tools.Statistics(lambda ind: ind.fitness.values)
-        self.stats.register('min', np.min, axis=0)
-        self.stats.register('max', np.max, axis=0)
-
-        self.logbook = tools.Logbook()
-        self.logbook.header = ['gen', 'nevals'] + (self.stats.fields if self.stats else [])
 
         population = [
             creator.Individual(x) for x in
@@ -215,16 +198,10 @@ class Optimizer:
             mu=self.population_size,
             lambda_=int(self.population_size * self.mutation_percent)
         )
+
         self.toolbox.register('generate', strategy.generate, creator.Individual)
         self.toolbox.register('update', strategy.update)
-        self.toolbox.register('pareto_front', lambda: strategy.parents)
-
-        stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register('min', np.min, axis=0)
-        stats.register('max', np.max, axis=0)
-
-        logbook = tools.Logbook()
-        logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
+        self.strategy = strategy
 
     def run(self, num_steps):
         self.do_init()
@@ -234,7 +211,7 @@ class Optimizer:
     def pareto(self):
         return [
             (self.normalize(ind), ind.fitness.results)
-            for ind in self.toolbox.pareto_front()
+            for ind in self.strategy.parents
         ]
 
     def history(self) -> typing.Iterable[typing.Tuple[np.array, OptResults]]:

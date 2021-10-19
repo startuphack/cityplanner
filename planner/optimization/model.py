@@ -1,13 +1,15 @@
+import pandas as pd
 import typing
 from math import radians
 import logging
 
 import numpy as np
 import pandas as pd
-import pygeos
-from sklearn.metrics.pairwise import haversine_distances
-from sklearn.neighbors import BallTree
 
+from sklearn.neighbors import BallTree
+from shapely.strtree import STRtree
+
+from shapely.geometry import Point
 import planner.optimization.loaders as L
 from planner.utils.geo_utils import EARTH_SIZE, find_buffer_width
 from planner.utils.math import weighted_percentile
@@ -35,6 +37,7 @@ class TargetObject(Square):
 
 
 class Evaluation:
+
     def __init__(self,
                  squares: typing.List[Square],
                  objects: typing.List[TargetObject],
@@ -45,6 +48,22 @@ class Evaluation:
         self.objects = objects
         self.query_objects = query_objects
         self.percentiles_for_evaluation = percentiles_for_evaluation
+        self.cost_normalization = 1e10  # делим на 10 млрд, умножаем на млрд
+
+        self.localization = {
+            'total-cost': {'title': 'стоимость, млрд', 'multiplier': -self.cost_normalization / 1e9},
+            'convenience': {'title': 'неудобство', 'multiplier': 1},
+            'avg-distance': {'title': 'среднее расстояние','multiplier':-1},
+            'overplanned': 'излишек мест',
+            'lack': 'нехватка мест',
+            'lack-percent': 'нехватка, %',
+            'required': 'необходимо метст',
+            'planned': 'запланировано мест',
+            'number-of-objects': 'число объектов',
+        }
+
+        for p in percentiles_for_evaluation:
+            self.localization[f'distance.p={p}'] = F'перцентиль({p}) расстояния до объекта'
 
         self.obj_num_index = {
             id: {
@@ -103,7 +122,7 @@ class Evaluation:
             total_cost += cost
             overplanned += target_object_data['available']
             for square_link in target_object_data['square-links']:
-                square = square_link['square']
+                # square = square_link['square']
                 placed = square_link['placed']
                 idx_distance = square_link['distance']
                 idx_distance_km = idx_distance * EARTH_SIZE
@@ -127,7 +146,7 @@ class Evaluation:
         lack_penalty *= lack_penalty
 
         result = {
-            'total-cost': -total_cost / 10e9,
+            'total-cost': -total_cost / self.cost_normalization,
             'convenience': -(avg_distance + lack_penalty),
             'avg-distance': -avg_distance,
             'overplanned': overplanned,
@@ -135,7 +154,7 @@ class Evaluation:
             'lack-percent': lack_percent,
             'required': all_required,
             'planned': all_planned,
-            'number-of-schools': len(self.objects)
+            'number-of-objects': len(self.objects)
         }
 
         for p_value, p in zip(percentiles, self.percentiles_for_evaluation):
@@ -255,48 +274,65 @@ class StopObjects:
             geo_points += [points_data] * len(geometry)
 
         self.merged_geometry = pd.concat(geometry_for_index, ignore_index=True)
-        self.geo_tree = self.merged_geometry.sindex
+        # self.geo_tree = self.merged_geometry.sindex
+        self.geo_tree = STRtree(self.merged_geometry)
         self.geo_data = np.asarray(geo_points)
 
     def is_stopped(self, lat, lon):
-        intersection_result = self.geo_tree.intersection([lon, lat])
+        intersection_result = self.geo_tree.query(Point(lon, lat))
 
-        try:
-            all_result = [
-                {
-                    'merged_data': m_data,
-                    'geom': geom,
-                }
-                for m_data, geom in zip(self.geo_data[intersection_result], self.merged_geometry[intersection_result])
-            ]
-        except:
-
-            raise
-
-        return all_result
+        return intersection_result
 
 
-if __name__ == '__main__':
-    bsas = [-34.83333, -58.5166646]
-    paris = [49.0083899664, 2.53844117956]
+class ObjectFactory:
+    def __init__(self, max_num_objects, proj_types, squares: typing.List[Square], stop_objects: StopObjects):
+        self.max_num_objects = max_num_objects
+        self.proj_types = proj_types
+        self.squares = squares
 
-    bsas_in_radians = [radians(_) for _ in bsas]
-    paris_in_radians = [radians(_) for _ in paris]
-    result = haversine_distances([bsas_in_radians, paris_in_radians])
+        lats, longs = zip(*(s.coords() for s in squares))
+        self.min_lat, self.max_lat = min(lats), max(lats)
+        self.min_lng, self.max_lng = min(longs), max(longs)
 
-    # from sklearn.neighbors import BallTree
-    # # print (BallTree.valid_metrics)
-    # import numpy as np
-    #
-    # X = np.array([[-1, -1], [-2, -1], [-3, -2], [1, 1], [2, 1], [3, 2]])
-    #
-    # # import timeit
-    # # timeit.repeat(lambda x: BallTree(X, leaf_size=30, metric='haversine'))
-    # kdt = BallTree(X, leaf_size=30, metric='haversine')
-    # print(kdt.query(X[:1], k=5, return_distance=True, sort_results=True))
-    # # array([[0, 1],
-    # #        [1, 0],
-    # #        [2, 1],
-    # #        [3, 4],
-    # #        [4, 3],
-    # #        [5, 4]]...)
+        min_normalization, max_normalization = list(), list()
+
+        for _ in range(self.max_num_objects):
+            min_normalization.extend([0, self.min_lat, self.min_lng])
+            max_normalization.extend([len(proj_types) + 4 - 1e-6, self.max_lat, self.max_lng])
+
+        self.min_normalization = np.asarray(min_normalization)
+        self.max_normalization = np.asarray(max_normalization)
+        self.stop_objects: StopObjects = stop_objects
+
+    def make_objects_from_point(self, point: np.ndarray):
+
+        normalized_array = point * (self.max_normalization - self.min_normalization) + self.min_normalization
+        res_objects = list()
+
+        idx = 0
+        for _ in range(self.max_num_objects):
+            obj_type = int(normalized_array[idx])
+            idx += 1
+            obj_lat = normalized_array[idx]
+            idx += 1
+            obj_lng = normalized_array[idx]
+            idx += 1
+
+            if obj_type < len(self.proj_types):
+                is_stopped = False
+                if self.stop_objects:
+                    is_stopped = bool(self.stop_objects.is_stopped(obj_lat, obj_lng))
+
+                if not is_stopped:
+                    proj = self.proj_types[obj_type]
+                    obj = TargetObject(obj_lng, obj_lat, proj['num_peoples'], proj)
+
+                    res_objects.append(obj)
+            else:
+                pass
+                # logging.info(f'fake object')
+
+        return res_objects
+
+    def dimension(self):
+        return self.min_normalization.shape[0]
