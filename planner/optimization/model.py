@@ -53,7 +53,7 @@ class Evaluation:
         self.localization = {
             'total-cost': {'title': 'стоимость, млрд', 'multiplier': -self.cost_normalization / 1e9},
             'convenience': {'title': 'неудобство', 'multiplier': 1},
-            'avg-distance': {'title': 'среднее расстояние','multiplier':-1},
+            'avg-distance': {'title': 'среднее расстояние', 'multiplier': -1},
             'overplanned': 'излишек мест',
             'lack': 'нехватка мест',
             'lack-percent': 'нехватка, %',
@@ -235,6 +235,7 @@ class StopObjects:
         L.load_water,
         L.load_highways,
         L.load_buildings_data,
+        L.load_parks,
     ]
 
     def __init__(self, stop_distance_for_objects):

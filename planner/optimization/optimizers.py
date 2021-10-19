@@ -24,6 +24,7 @@ STOP_DISTANCES = {
     'transport-nodes': 0.1,
     'water': 0.1,
     'highway': 0.05,
+    # 'park': 0.001,
     'Building': 0.05,
 }
 

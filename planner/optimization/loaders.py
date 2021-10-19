@@ -130,3 +130,6 @@ def load_highways(filename=resources / 'highways.gz.pq'):
 
 def load_water(filename=resources / 'waters.gz.pq'):
     return geopandas.read_parquet(filename)
+
+def load_parks(filename=resources / 'parks.gz.pq'):
+    return geopandas.read_parquet(filename)
