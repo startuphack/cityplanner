@@ -166,60 +166,61 @@ class Evaluation:
         reindex_required = False
         no_objects = False
 
-        for square, square_geo in zip(self.squares_data, self.squares):
+        if self.objects:
+            for square, square_geo in zip(self.squares_data, self.squares):
 
-            if no_objects:
-                break
+                if no_objects:
+                    break
 
-            if square['num_peoples'] > 0:
-                required_to_place = square['num_peoples']
-                first_pass = True
-                while True:
-                    if (required_to_place == 0) or ((not first_pass) and (not reindex_required)):
-                        # Мы останавливаемся, если
-                        #   полностью исчерпали текущий квадрат
-                        #   или у нас не исчерпались новые целевые объекты (это значит, что у нас уже все исчерпано)
-                        break
+                if square['num_peoples'] > 0:
+                    required_to_place = square['num_peoples']
+                    first_pass = True
+                    while True:
+                        if (required_to_place == 0) or ((not first_pass) and (not reindex_required)):
+                            # Мы останавливаемся, если
+                            #   полностью исчерпали текущий квадрат
+                            #   или у нас не исчерпались новые целевые объекты (это значит, что у нас уже все исчерпано)
+                            break
 
-                    first_pass = False
-                    if reindex_required:
-                        self.reindex()
-                        reindex_required = False
-                        if not self.idx_to_num:
+                        first_pass = False
+                        if reindex_required:
+                            self.reindex()
+                            reindex_required = False
+                            if not self.idx_to_num:
+                                no_objects = True
+                                break
+
+                        objects_to_query = min(len(self.idx_to_num), self.query_objects)
+
+                        distances, obj_nums = self.obj_geo_index.query([square_geo.radian_coords()], objects_to_query)
+
+                        if len(obj_nums) == 0:
                             no_objects = True
                             break
 
-                    objects_to_query = min(len(self.idx_to_num), self.query_objects)
+                        for distance, idx_obj_num in zip(distances.flatten(), obj_nums.flatten()):
+                            obj_num = self.idx_to_num[idx_obj_num]
+                            obj_info = self.obj_num_index[obj_num]
+                            available = obj_info['available']
+                            if available > 0:
+                                can_place = min(available, required_to_place)
+                                if can_place == available:
+                                    reindex_required = True
 
-                    distances, obj_nums = self.obj_geo_index.query([square_geo.radian_coords()], objects_to_query)
+                                obj_info['square-links'].append(
+                                    {
+                                        'square': square,
+                                        'placed': can_place,
+                                        'distance': distance,
+                                    }
+                                )
 
-                    if len(obj_nums) == 0:
-                        no_objects = True
-                        break
+                                obj_info['available'] -= can_place
+                                required_to_place -= can_place
+                                square['num_peoples'] -= can_place
 
-                    for distance, idx_obj_num in zip(distances.flatten(), obj_nums.flatten()):
-                        obj_num = self.idx_to_num[idx_obj_num]
-                        obj_info = self.obj_num_index[obj_num]
-                        available = obj_info['available']
-                        if available > 0:
-                            can_place = min(available, required_to_place)
-                            if can_place == available:
-                                reindex_required = True
-
-                            obj_info['square-links'].append(
-                                {
-                                    'square': square,
-                                    'placed': can_place,
-                                    'distance': distance,
-                                }
-                            )
-
-                            obj_info['available'] -= can_place
-                            required_to_place -= can_place
-                            square['num_peoples'] -= can_place
-
-                            if required_to_place == 0:
-                                break
+                                if required_to_place == 0:
+                                    break
 
         return self.get_metrics()
 
@@ -250,7 +251,7 @@ class StopObjects:
         for loader in self.stop_loaders:
             df = loader()
             for data_type in df.data_type.unique():
-                stop_distance = self.stop_distance_for_objects.get(data_type)
+                stop_distance = self.stop_distance_for_objects.get(data_type.lower())
 
                 if stop_distance:
                     logging.info(f'stop distance = {stop_distance} km for {data_type}')

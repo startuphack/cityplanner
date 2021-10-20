@@ -131,5 +131,12 @@ def load_highways(filename=resources / 'highways.gz.pq'):
 def load_water(filename=resources / 'waters.gz.pq'):
     return geopandas.read_parquet(filename)
 
+
 def load_parks(filename=resources / 'parks.gz.pq'):
     return geopandas.read_parquet(filename)
+
+
+def load_shapes(adm_id, filename=resources / 'all_shapes.gz.pq'):
+    shapes_df = geopandas.read_parquet(filename)
+    shapes_df = shapes_df[shapes_df.adm_zid == adm_id].copy()
+    return shapes_df

@@ -24,8 +24,8 @@ STOP_DISTANCES = {
     'transport-nodes': 0.1,
     'water': 0.1,
     'highway': 0.05,
-    # 'park': 0.001,
-    'Building': 0.05,
+    'park': 0.001,
+    'building': 0.05,
 }
 
 
@@ -84,7 +84,7 @@ class SchoolOptimizer:
 
         print(f'pending place {total_number_of_children} children to schools')
         num_schools = int(np.ceil(total_number_of_children / 1000)) * 3
-        stop_objects = M.StopObjects(STOP_DISTANCES)
+        stop_objects = M.StopObjects(self.stop_distances)
 
         factory = M.ObjectFactory(num_schools, proj_types=self.school_projects, squares=squares,
                                   stop_objects=stop_objects)

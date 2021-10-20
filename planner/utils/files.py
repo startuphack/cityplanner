@@ -2,6 +2,7 @@ import gzip
 import io
 import pathlib
 import pickle
+import pandas as pd
 
 import cloudpickle
 
@@ -34,3 +35,41 @@ def pickle_load(filename, gzip_file=True):
     i_method = gzip.open if gzip_file else open
     with i_method(filename) as input:
         return pickle.load(input)
+
+
+def parse_excel_config(config_file):
+    projects_data = pd.read_excel(config_file, sheet_name='projects')
+    projects_data.columns = map(lambda x: x.strip().lower(), projects_data.columns)
+    projects_data.rename(columns={
+        'проект': 'name',
+        'стоимость постройки': 'cost',
+        'число мест': 'num_peoples',
+        'включено': 'enabled',
+    }, inplace=True)
+
+    projects_data = projects_data[projects_data.enabled.str.lower() == 'да']
+
+    projects_dict = projects_data.to_dict(orient='records')
+    try:
+        limits_data = pd.read_excel(config_file, sheet_name='limits')
+        limits_data.columns = map(lambda x: x.strip().lower(), limits_data.columns)
+        limits_data.rename(columns={
+            'id ограничения': 'lid',
+            'значение ограничения(км)': 'limit',
+            'включено': 'enabled',
+        }, inplace=True)
+
+        limits_data = limits_data[limits_data.enabled.str.lower() == 'да']
+
+        limits_dict = limits_data.set_index('lid').to_dict()['limit']
+    except ValueError:
+        limits_dict = None
+
+    result = {
+        'projects': projects_dict,
+    }
+
+    if limits_dict:
+        result['limits'] = limits_dict
+
+    return result
