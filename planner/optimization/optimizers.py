@@ -187,6 +187,7 @@ class DrawFrontCallback(OptimizationCallback):
 
         plot_df.drop_duplicates(['cluster'], inplace=True)
 
+        point_col = plot_df['point']
         del plot_df['point']
 
         target_columns = list()
@@ -208,3 +209,9 @@ class DrawFrontCallback(OptimizationCallback):
                          color='неудобство', hover_data=plot_df.columns, size='size')
         #
         fig.write_html(f'{self.target_path}/pareto_{algorithm.fitness_steps}.html')
+
+        plot_df['point'] = point_col
+        pickle_dump(
+            {'plot_df': plot_df, 'factory': optimizer.factory},
+            f'{self.target_path}/step_{algorithm.fitness_steps}.gz.mdl',
+        )
