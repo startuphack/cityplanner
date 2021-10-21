@@ -32,10 +32,18 @@ data = load_data()
 
 
 st.sidebar.selectbox("Район", data["adm_names"], format_func=data["adm_names"].get, key="region_value")
+uploaded_file = st.sidebar.file_uploader("Загрузить файл конфигурации", type=['xlsx'])
+config_path = pathlib.Path('config.xlsx')
+if uploaded_file is not None:
+    if not config_path.exists() or config_path.stat().st_size != uploaded_file.size:
+        with config_path.open('wb') as f:
+            f.write(uploaded_file.getvalue())
+
 
 is_started = state["optimizer_process"] is not None
 placeholder = st.sidebar.empty()
 results_path = f"results/{state['region_value']}/"
+
 if placeholder.button("Запустить" if not is_started else "Остановить"):
     if is_started:
         state["optimizer_process"].terminate()
@@ -43,16 +51,21 @@ if placeholder.button("Запустить" if not is_started else "Остано�
         placeholder.button("Запустить")
         is_started = False
     else:
+        log_file = pathlib.Path('optimization.log').open('a')
+        cmd = [
+            "python",
+            "planner/optimization/run_optimization.py",
+            "--adm-id",
+            state["region_value"],
+            "--results-path",
+            results_path,
+        ]
+        if config_path.exists():
+            cmd += ['--config-file', 'config.xlsx']
+
         state["optimizer_process"] = subprocess.Popen(
-            [
-                "python",
-                "planner/optimization/run_optimization.py",
-                "--adm-id",
-                state["region_value"],
-                "--results-path",
-                results_path,
-            ],
-            stdout=subprocess.DEVNULL,
+            cmd,
+            stdout=log_file,
             stderr=subprocess.STDOUT,
         )
 
