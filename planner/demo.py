@@ -86,7 +86,7 @@ if not step_files():
 
 # берем последний файл step_*
 last_step_file = max(step_files(), key=lambda path: int(re.sub(r'\D', '', path.stem)))
-n_step = int(last_step_file.name.removeprefix('step_').split('.')[0])
+n_step = int(last_step_file.name.split('step_')[-1].split('.')[0])
 st.subheader(f"Итерация {n_step}")
 
 optimizer_data = pickle_load(last_step_file)
