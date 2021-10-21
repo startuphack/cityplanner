@@ -1,5 +1,6 @@
 import json
 import time
+import re
 import pathlib
 import subprocess
 
@@ -11,8 +12,13 @@ from streamlit import session_state as state
 from streamlit_plotly_events import plotly_events
 from planner.utils.files import pickle_load
 
-st.set_page_config(layout="wide")
+ICON_URL = "https://img.icons8.com/plasticine/100/000000/marker.png"
 
+st.set_page_config(layout="wide")
+st.title("Планирование школ")
+
+
+state.setdefault("optimizer_process", None)
 
 @st.cache()
 def load_data():
@@ -24,15 +30,12 @@ def load_data():
 
 data = load_data()
 
-st.title("Планирование школ")
-st.subheader("Subtitle")
-
-state.setdefault("optimizer_process", None)
 
 st.sidebar.selectbox("Район", data["adm_names"], format_func=data["adm_names"].get, key="region_value")
 
 is_started = state["optimizer_process"] is not None
 placeholder = st.sidebar.empty()
+results_path = f"results/{state['region_value']}/"
 if placeholder.button("Запустить" if not is_started else "Остановить"):
     if is_started:
         state["optimizer_process"].terminate()
@@ -40,14 +43,26 @@ if placeholder.button("Запустить" if not is_started else "Остано�
         placeholder.button("Запустить")
         is_started = False
     else:
-        state["optimizer_process"] = subprocess.Popen(["sleep", "60"])  # todo
+        state["optimizer_process"] = subprocess.Popen(
+            [
+                "python",
+                "planner/optimization/run_optimization.py",
+                "--adm-id",
+                state["region_value"],
+                "--results-path",
+                results_path,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+
         st.sidebar.success("Оптимизация запущена")
         placeholder.button("Остановить")
         is_started = True
 
 
 def step_files():
-    return list(pathlib.Path("resources/opt/").glob("step_*"))
+    return list(pathlib.Path(results_path).glob("step_*"))
 
 
 if not step_files():
@@ -58,13 +73,23 @@ if not step_files():
     else:
         with st.spinner("Рассчитываем оптимальные расположения..."):
             while True:
-                time.sleep(0.5)
+                time.sleep(1)
                 if step_files():
                     break
 
+            while True:
+                try:
+                    optimizer_data = pickle_load(max(step_files()))
+                    break
+                except EOFError:
+                    time.sleep(1)
 
 # берем последний файл step_*
-optimizer_data = pickle_load(max(step_files()))
+last_step_file = max(step_files(), key=lambda path: int(re.sub(r'\D', '', path.stem)))
+n_step = int(last_step_file.name.removeprefix('step_').split('.')[0])
+st.subheader(f"Итерация {n_step}")
+
+optimizer_data = pickle_load(last_step_file)
 plot_df = optimizer_data["plot_df"]
 factory = optimizer_data["factory"]
 point_col = plot_df["point"]
@@ -95,23 +120,16 @@ if len(selected_points) == 1:
     )
 
 
-
-
-ICON_URL = "https://img.icons8.com/plasticine/100/000000/marker.png"
-
 icon_data = {
     "url": ICON_URL,
     "width": 128,
     "height": 128,
     "anchorY": 128,
 }
+map_df["icon_data"] = pd.Series(icon_data for _ in range(map_df.shape[0]))
 
-map_df["icon_data"] = None
-for i in map_df.index:
-    map_df["icon_data"][i] = icon_data
-
-if map_df.shape[0] > 0:
-    view_state = pdk.data_utils.compute_view(map_df[["lon", "lat"]], 0.6)
+if map_df.shape[0] > 1:
+    view_state = pdk.data_utils.compute_view(map_df[["lon", "lat"]], 1.1)
 else:
     view_state = pdk.ViewState(longitude=37.618423, latitude=55.751244, zoom=10, pitch=0)
 
@@ -125,10 +143,11 @@ icon_layer = pdk.Layer(
     pickable=True,
 )
 
-r = pdk.Deck(
-    layers=[icon_layer],
-    initial_view_state=view_state,
-    tooltip={"text": "Кол-во учеников: {n}"},
-    map_style="mapbox://styles/mapbox/streets-v11",
+st.pydeck_chart(
+    pdk.Deck(
+        layers=[icon_layer],
+        initial_view_state=view_state,
+        tooltip={"text": "Кол-во учеников: {n}"},
+        map_style="mapbox://styles/mapbox/streets-v11",
+    )
 )
-st.pydeck_chart(r)
