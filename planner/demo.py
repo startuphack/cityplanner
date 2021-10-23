@@ -115,7 +115,7 @@ fig = px.scatter(
     color="неудобство",
     hover_data=plot_df.columns,
     size="size",
-    color_continuous_scale="RdBu",
+    # color_continuous_scale="RdBu",
 )
 fig.update_layout(
     plot_bgcolor="#F0F2F6",
