@@ -111,7 +111,7 @@ del plot_df["point"]
 fig = px.scatter(
     plot_df,
     x="стоимость, млрд",
-    y="среднее расстояние",
+    y="среднее расстояние, км",
     color="неудобство",
     hover_data=plot_df.columns,
     size="size",
