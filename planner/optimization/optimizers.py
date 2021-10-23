@@ -1,18 +1,17 @@
-import pandas as pd
 import logging
-import os
 import math
+import os
 import typing
-import plotly.express as px
+
 import numpy as np
+import pandas as pd
+import plotly.express as px
 
 import planner.optimization.model as M
 from planner.optimization.loaders import load_schools
 from planner.optimization.mocma import Optimizer
-from sklearn.cluster import MiniBatchKMeans
 from planner.utils.files import pickle_dump
-
-import plotly
+from planner.utils.math import is_pareto_efficient
 
 STOP_DISTANCES = {
     'beach': 0.1,  # не менее 300 метров до пляжа
@@ -47,7 +46,7 @@ class SchoolOptimizer:
                  stop_distances=None,
                  step_batch=30,
                  population_size=200,
-                 school_child_percent=0.2,
+                 params=None
                  ):
         self.squares_df = squares_df
         self.school_projects = school_projects
@@ -58,9 +57,11 @@ class SchoolOptimizer:
         self.required_schools = None
         self.squares = None
         self.step_batch = step_batch
+        self.params = params or {}
 
         self.population_size = population_size
-        self.school_child_percent = school_child_percent
+        self.school_child_percent = self.params.get('pupilsPerCitizen', 0.11)
+        self.lack_penalty_coefficient = self.params.get('lackPenaltyCoefficient', 4.9)
 
     def add_callbacks(self, *callbacks):
         self.callbacks.extend(callbacks)
@@ -160,21 +161,26 @@ class DrawFrontCallback(OptimizationCallback):
         points, metrics = zip(*history_data)
 
         points_df = pd.DataFrame(map(lambda x: x.metrics, metrics))
-        low_convenience = np.percentile(points_df['convenience'], q=90)
-        low_cost = np.percentile(points_df['total-cost'], q=90)
+        low_convenience = np.percentile(points_df['convenience'], q=50)
+        low_cost = np.percentile(points_df['total-cost'], q=50)
         predicate = (points_df.convenience > low_convenience) | (points_df['total-cost'] > low_cost)
+        predicate = predicate & (points_df['convenience'] > -1e2)
+        predicate = predicate & (points_df['total-cost'] < 0)
+        predicate = predicate & (points_df['avg-distance'] > - 5)
+
         points_df = points_df[predicate].copy()
         points = np.asarray(points)[predicate]
 
         pareto_data = points_df[['convenience', 'total-cost']].values
+        pareto_mask = is_pareto_efficient(pareto_data)
 
-        point_labels = MiniBatchKMeans(n_clusters=min(len(points_df), 10)).fit_predict(pareto_data)
+        points_df = points_df[pareto_mask]
+        points = points[pareto_mask]
 
-        points_df['cluster'] = point_labels
         points_df['point_id'] = points_df.index
         points_df['point'] = list(points)
 
-        plot_df = points_df.sort_values(['cluster', 'convenience'], ascending=False)
+        plot_df = points_df.sort_values(['convenience'], ascending=False)
 
         plot_df_data = plot_df.to_dict(orient='records')
         dump_data = {
@@ -184,8 +190,6 @@ class DrawFrontCallback(OptimizationCallback):
         }
 
         pickle_dump(dump_data, f'{self.target_path}/pareto_{algorithm.fitness_steps}.gz.mdl')
-
-        plot_df.drop_duplicates(['cluster'], inplace=True)
 
         point_col = plot_df['point']
         del plot_df['point']
@@ -204,8 +208,9 @@ class DrawFrontCallback(OptimizationCallback):
 
         plot_df = plot_df[target_columns]
         plot_df['size'] = 2
+        plot_df = plot_df.round(2)
 
-        fig = px.scatter(plot_df, x='стоимость, млрд', y='среднее расстояние',
+        fig = px.scatter(plot_df, x='стоимость, млрд', y='среднее расстояние, км',
                          color='неудобство', hover_data=plot_df.columns, size='size')
         #
         fig.write_html(f'{self.target_path}/pareto_{algorithm.fitness_steps}.html')

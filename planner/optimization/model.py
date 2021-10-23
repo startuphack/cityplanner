@@ -42,18 +42,20 @@ class Evaluation:
                  squares: typing.List[Square],
                  objects: typing.List[TargetObject],
                  query_objects=5,
-                 percentiles_for_evaluation=(50, 70, 90, 95)
+                 percentiles_for_evaluation=(50, 70, 90, 95),
+                 lack_penalty=10,
                  ):
         self.squares = squares
         self.objects = objects
         self.query_objects = query_objects
         self.percentiles_for_evaluation = percentiles_for_evaluation
-        self.cost_normalization = 1e10  # делим на 10 млрд, умножаем на млрд
+        self.cost_normalization = 1e10  # делим на 10 млрд
+        self.lack_penalty = lack_penalty
 
         self.localization = {
             'total-cost': {'title': 'стоимость, млрд', 'multiplier': -self.cost_normalization / 1e9},
             'convenience': {'title': 'неудобство', 'multiplier': 1},
-            'avg-distance': {'title': 'среднее расстояние', 'multiplier': -1},
+            'avg-distance': {'title': 'среднее расстояние, км', 'multiplier': -1},
             'overplanned': 'излишек мест',
             'lack': 'нехватка мест',
             'lack-percent': 'нехватка, %',
@@ -142,7 +144,7 @@ class Evaluation:
 
         lack = max(all_required - all_planned, 0)
         lack_percent = lack / all_required
-        lack_penalty = 10 * lack_percent
+        lack_penalty = self.lack_penalty * lack_percent
         lack_penalty *= lack_penalty
 
         result = {
@@ -237,6 +239,7 @@ class StopObjects:
         L.load_highways,
         L.load_buildings_data,
         L.load_parks,
+        L.load_railroads,
     ]
 
     def __init__(self, stop_distance_for_objects):
@@ -254,15 +257,13 @@ class StopObjects:
                 stop_distance = self.stop_distance_for_objects.get(data_type.lower())
 
                 if stop_distance:
-                    logging.info(f'stop distance = {stop_distance} km for {data_type}')
-                else:
-                    logging.info(f'no stop distance for {data_type}')
-                if stop_distance:
                     data_geometry = df[df.data_type == data_type].geometry
                     centroid = data_geometry.centroid
                     stop_distance_in_angles = find_buffer_width(
                         [np.median(centroid.y), np.median(centroid.x)],
                         stop_distance)
+
+                    logging.info(f'stop distance = {stop_distance} km; angles = {stop_distance_in_angles} for {data_type}')
                     buffered_data_geometry = data_geometry.buffer(stop_distance_in_angles)
                     geometry_for_index.append(buffered_data_geometry)
                     geo_points_data.append({
@@ -270,6 +271,8 @@ class StopObjects:
                         'distance': stop_distance,
                         'distance_in_angles': stop_distance_in_angles,
                     })
+                else:
+                    logging.info(f'no stop distance for {data_type}')
 
         geo_points = []
         for points_data, geometry in zip(geo_points_data, geometry_for_index):

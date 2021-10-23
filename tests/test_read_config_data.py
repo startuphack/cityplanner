@@ -6,3 +6,4 @@ def test_load_configs():
 
     assert len(config_data['projects']) > 0
     assert len(config_data['limits']) > 0
+    assert len(config_data['configs']) > 0

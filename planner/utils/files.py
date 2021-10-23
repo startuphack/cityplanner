@@ -65,11 +65,27 @@ def parse_excel_config(config_file):
     except ValueError:
         limits_dict = None
 
+    try:
+        configs_data = pd.read_excel(config_file, sheet_name='configs')
+        configs_data.columns = map(lambda x: x.strip().lower(), configs_data.columns)
+        configs_data.rename(columns={
+            'параметр': 'key',
+            'значение': 'value'
+        }, inplace=True)
+
+        configs_data = configs_data.set_index('key').to_dict()['value']
+
+    except ValueError:
+        configs_data = None
+
     result = {
         'projects': projects_dict,
     }
 
     if limits_dict:
         result['limits'] = limits_dict
+
+    if configs_data:
+        result['configs'] = configs_data
 
     return result

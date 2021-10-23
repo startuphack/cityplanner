@@ -144,9 +144,9 @@ class Optimizer:
 
         if remains > 0:
             evaluated_values = self.backend(
-                    delayed(do_evaluate)(self.optimization_target, batch, self.batch_evaluation) for batch in
-                    mit.chunked(for_evaluation, batch_size)
-                )
+                delayed(do_evaluate)(self.optimization_target, batch, self.batch_evaluation) for batch in
+                mit.chunked(for_evaluation, batch_size)
+            )
 
             for ind, val in it.chain.from_iterable(evaluated_values):
                 result[ind] = OptResults(self.num_objectives, val)
@@ -166,6 +166,7 @@ class Optimizer:
             self.fitness_history.append(fit.values)
 
     def step(self):
+        logging.info(f'optimization step = {self.fitness_steps + 1}')
         # Generate a new population
         population = self.toolbox.generate()
 
