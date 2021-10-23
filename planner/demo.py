@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import re
@@ -24,6 +25,15 @@ state.setdefault("optimizer_process", None)
 def load_data():
     with open("resources/adm_names.json") as f:
         adm_names = json.load(f)
+
+    files_df = pd.DataFrame({'files': pathlib.Path('results').glob('*/*')})
+
+    files_df['mtime'] = files_df.files.apply(lambda x: os.path.getmtime(str(x)))
+    files_df['parent'] = files_df.files.apply(lambda x: str(x.parent.name))
+    mtimes_index = files_df.groupby('parent').agg({'mtime': max}).to_dict()['mtime']
+
+    sorted_names = sorted(adm_names.items(), key=lambda x: mtimes_index.get(x[0], 0), reverse=True)
+    adm_names = dict(sorted_names)
 
     return dict(adm_names=adm_names)
 
