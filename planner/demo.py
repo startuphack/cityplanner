@@ -79,9 +79,21 @@ if placeholder.button("Запустить" if not is_started else "Остано�
             stderr=subprocess.STDOUT,
         )
 
-        st.sidebar.success("Оптимизация запущена")
         placeholder.button("Остановить")
         is_started = True
+
+if is_started:
+    return_code = state["optimizer_process"].poll()
+    if return_code is None:
+        st.sidebar.success("Оптимизация запущена")
+    else:
+        state["optimizer_process"] = None
+        if return_code == 0:
+            st.sidebar.success("Оптимизация завершена")
+        elif return_code == 101:
+            st.sidebar.info("Нет учеников для размещения")
+        else:
+            st.sidebar.error("Произошла ошибка")
 
 
 def step_files():

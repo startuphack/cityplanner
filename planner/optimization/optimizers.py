@@ -28,6 +28,14 @@ STOP_DISTANCES = {
 }
 
 
+class OptimizationStop(Exception):
+    error_code: int = NotImplemented
+
+
+class NoSchoolsRequired(OptimizationStop):
+    error_code = 101
+
+
 class OptimizationCallback:
     def on_step(self, algorithm, optimizer):
         """
@@ -153,7 +161,7 @@ class SchoolOptimizer:
             # Если школы не нужны, не оптимизируем
             if self.no_schools_required:
                 logging.info(f'no school required')
-                return
+                raise NoSchoolsRequired
 
         required_steps = int(math.ceil(num_steps / self.step_batch))
 

@@ -55,4 +55,7 @@ if __name__ == '__main__':
 
     optimizer.add_callbacks(O.DrawFrontCallback(args.results_path))
 
-    optimizer.run_optimization(args.num_steps)
+    try:
+        optimizer.run_optimization(args.num_steps)
+    except O.OptimizationStop as e:
+        exit(e.error_code)
