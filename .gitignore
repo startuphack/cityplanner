@@ -16,3 +16,4 @@ __pycache__/
 resources/opt
 results
 *log
+*.out
