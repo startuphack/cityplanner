@@ -115,7 +115,7 @@ class SchoolOptimizer:
         # Обновляем данные секторов с учетом текущих построенных школ (Data.mos.ru)
         existed_evaluation.move_data_to_squares()
 
-        remained_number_of_pupils = sum(square.num_peoples for square in self.squares)
+        remained_number_of_pupils = sum(square.num_peoples for square in squares)
 
         if remained_number_of_pupils == 0:
             self.no_schools_required = True
