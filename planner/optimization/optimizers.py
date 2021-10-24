@@ -148,6 +148,10 @@ class SchoolOptimizer:
         """
         if self.optimizer is None:
             self._init_optimization()
+            # Если школы не нужны, не оптимизируем
+            if self.no_schools_required:
+                logging.info(f'no school required')
+                return
 
         required_steps = int(math.ceil(num_steps / self.step_batch))
 

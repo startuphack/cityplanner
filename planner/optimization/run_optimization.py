@@ -52,8 +52,7 @@ if __name__ == '__main__':
         params=params
     )
 
-    # Если школы не нужны, не оптимизируем
-    if not optimizer.no_schools_required:
-        optimizer.add_callbacks(O.DrawFrontCallback(args.results_path))
 
-        optimizer.run_optimization(args.num_steps)
+    optimizer.add_callbacks(O.DrawFrontCallback(args.results_path))
+
+    optimizer.run_optimization(args.num_steps)
