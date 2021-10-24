@@ -34,14 +34,14 @@ if __name__ == '__main__':
 
     configs = F.parse_excel_config(args.config_file)
 
-    parameters = configs.get('configs',{})
+    parameters = configs.get('configs', {})
     projects = configs['projects']
     limits = configs.get('limits')
-    params = configs.get('configs',{})
+    params = configs.get('configs', {})
 
-    logging.info(f'projects: {projects}' )
-    logging.info(f'limits: {limits}' )
-    logging.info(f'params: {params}' )
+    logging.info(f'projects: {projects}')
+    logging.info(f'limits: {limits}')
+    logging.info(f'params: {params}')
 
     optimizer = O.SchoolOptimizer(
         squares_df,
@@ -49,8 +49,11 @@ if __name__ == '__main__':
         stop_distances=configs.get('limits'),
         population_size=args.population_size,
         step_batch=args.step_batch,
-        params = params
+        params=params
     )
-    optimizer.add_callbacks(O.DrawFrontCallback(args.results_path))
 
-    optimizer.run_optimization(args.num_steps)
+    # Если школы не нужны, не оптимизируем
+    if not optimizer.no_schools_required:
+        optimizer.add_callbacks(O.DrawFrontCallback(args.results_path))
+
+        optimizer.run_optimization(args.num_steps)

@@ -43,6 +43,7 @@ class SchoolOptimizer:
     """
     Оптимизатор расположения школ. Собирает все параметры вместе, запускает оптимизацию, сохраняет результаты
     """
+
     def __init__(self,
                  squares_df,
                  school_projects,
@@ -114,6 +115,12 @@ class SchoolOptimizer:
         # Обновляем данные секторов с учетом текущих построенных школ (Data.mos.ru)
         existed_evaluation.move_data_to_squares()
 
+        remained_number_of_pupils = sum(square.num_peoples for square in self.squares)
+
+        if remained_number_of_pupils == 0:
+            self.no_schools_required = True
+            logging.info(f'no required new schools')
+
         logging.info(f'current schools data: {existed_evaluation_results}')
 
         optimizer = Optimizer(factory.dimension(), 2, self.evaluator, population_size=self.population_size)
@@ -165,6 +172,7 @@ class DrawFrontCallback(OptimizationCallback):
     """
     Этот callback отвечает за сохранение данных, по которым восстанавливаются точки парето-фронта.
     """
+
     def __init__(self, target_path='.'):
         self.target_path = target_path
         os.makedirs(target_path, exist_ok=True)
