@@ -120,6 +120,8 @@ class SchoolOptimizer:
         if remained_number_of_pupils == 0:
             self.no_schools_required = True
             logging.info(f'no required new schools')
+        else:
+            self.no_schools_required = False
 
         logging.info(f'current schools data: {existed_evaluation_results}')
 
