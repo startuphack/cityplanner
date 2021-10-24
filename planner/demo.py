@@ -21,7 +21,7 @@ st.title("Планирование школ")
 
 state.setdefault("optimizer_process", None)
 
-@st.cache()
+
 def load_data():
     with open("resources/adm_names.json") as f:
         adm_names = json.load(f)
