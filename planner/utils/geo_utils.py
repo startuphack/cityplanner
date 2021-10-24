@@ -7,6 +7,7 @@ EARTH_SIZE = 6371  # km
 
 def haver_distance(radian_coords1, radian_coords2):
     '''
+    Метод для подсчета дистации по сфере
     Координаты передаются в виде широта, долгота
     :param radian_coords1:
     :param radian_coords2:

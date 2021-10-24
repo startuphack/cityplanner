@@ -1,3 +1,6 @@
+"""
+В этом файле находится модуль многокритериальной оптимизации
+"""
 import csv
 import logging
 import typing
@@ -14,27 +17,14 @@ from joblib.parallel import Parallel, delayed
 from runstats import Statistics
 
 
-class Translator:
-    def __init__(self, delegate, intervals, from_interval=(-1, 1)):
-        self.delegate = delegate
-        self.intervals = intervals
-        self.from_interval = from_interval
-
-    def __call__(self, *normal_args):
-        from_min, from_max = self.from_interval
-
-        args = []
-
-        for arg, (i_min, i_max, *types) in zip(normal_args, self.intervals):
-            arg = (i_max - i_min) * (arg - from_min) / (from_max - from_min) + i_min
-            if types:
-                arg = types[0](arg)
-            args.append(arg)
-        #         print(args)
-        return self.delegate(*args)
-
-
 def do_evaluate(evaluator, batch, batch_evaluation=False):
+    """
+    Метод, отвечающий за получение метрик по выбранным точкам
+    :param evaluator: функция оценки
+    :param batch: точка или набор точек для получения метрик
+    :param batch_evaluation: флаг того, что оценка производится пакетно. это используется для оптимизации вычислений
+    :return: метрики для точки/набора точек
+    """
     if batch_evaluation:
         indices, values = zip(*batch)
         results = evaluator(values)
@@ -48,6 +38,10 @@ def do_evaluate(evaluator, batch, batch_evaluation=False):
 
 
 class OptResults:
+    """
+    Обертка для получения дополнительных метрик в момент оценки.
+    Целевыми метриками, влияющими на оптимизацию считаются первые dim штук
+    """
     def __init__(self, dim, values):
         if isinstance(values, dict):
             self.values = [v for k, v in it.islice(values.items(), dim)]
@@ -61,7 +55,9 @@ class OptResults:
 
 
 class OptFitness(base.Fitness):
-
+    """
+    Один представитель поколения оптимизации
+    """
     def __init__(self, values=()):
         super().__init__(values)
         self.results = None
@@ -115,12 +111,21 @@ class Optimizer:
         return {}  # only this is needed
 
     def normalize(self, individual):
+        """
+        Нормализовать передаваемые данные, чтобы они попадали в интервал [self.min, self.max]
+        :param individual: вектор одной точки
+        :return: номрализованный вектор
+        """
         new_val = self.min + self.delta * ((1 - np.sin(individual)) / 2)
         if self.round_digits is not None:
             new_val = np.round(new_val, self.round_digits)
         return new_val
 
     def v_key(self, v):
+        """
+        Мы кешируем точки с помощью нормализованного строкового представления
+        Этот метод используется для получения ключа
+        """
         return v.tostring()
 
     def on_step_complete(self):
@@ -128,6 +133,11 @@ class Optimizer:
             listener(self)
 
     def evaluate(self, vectors):
+        """
+        В этом методе происходит вычисление метрик для всего поколения точек.
+        Вычисления происходят в пуле процессов и, при необходимости, кешируются
+        :return: Значения метрик для поколения
+        """
         result = [None] * vectors.shape[0]
 
         remains = len(vectors)
@@ -157,6 +167,10 @@ class Optimizer:
         return result
 
     def fit_population(self, population):
+        """
+        Заполнить метрики для поколения
+        :param population: поколения
+        """
 
         vectors = np.asarray(list(map(self.normalize, population)))
 
@@ -166,6 +180,13 @@ class Optimizer:
             self.fitness_history.append(fit.values)
 
     def step(self):
+        """
+        Шаг оптимизации.
+        Состоит из
+        1. Генерации наследников
+        2. Оценка метрик
+        3. Обновление состояния алгоритма
+        """
         logging.info(f'optimization step = {self.fitness_steps + 1}')
         # Generate a new population
         population = self.toolbox.generate()
@@ -178,6 +199,10 @@ class Optimizer:
         self.fitness_steps += 1
 
     def do_init(self):
+        """
+        Инициализация состояния алгоритма.
+        Инициализируем случайными точками
+        """
         if self.toolbox is not None:
             return
 
@@ -210,12 +235,18 @@ class Optimizer:
             self.step()
 
     def pareto(self):
+        """
+        Получить текущий парето-фронт алгоритма
+        """
         return [
             (self.normalize(ind), ind.fitness.results)
             for ind in self.strategy.parents
         ]
 
     def history(self) -> typing.Iterable[typing.Tuple[np.array, OptResults]]:
+        """
+        Получить всю историю вычислений
+        """
         for point_str, results in self.evaluations.items():
             point = np.frombuffer(point_str, np.float64)
             yield point, results

@@ -16,6 +16,9 @@ from planner.utils.math import weighted_percentile
 
 
 class Square:
+    """
+    Данные сектора
+    """
     def __init__(self, lon, lat, num_peoples, **attrs):
         self.lon = lon
         self.lat = lat
@@ -31,12 +34,21 @@ class Square:
 
 
 class TargetObject(Square):
+    """
+    Данные целевого объекта.
+    Содержат кроме всего прочего информацию о проекте застройки
+    """
     def __init__(self, lon, lat, num_peoples, project=None, **attrs):
         super().__init__(lon, lat, num_peoples, **attrs)
         self.project = project or {'num_peoples': num_peoples}
 
 
 class Evaluation:
+    """
+    Состояние оценки метрик.
+    Во время оценки производится попытка разместить всех потенциальных учеников в ближайшие доступные школы
+    После этого считаются метрики по стоимости/удобству
+    """
 
     def __init__(self,
                  squares: typing.List[Square],
@@ -92,6 +104,7 @@ class Evaluation:
             square.num_peoples = square_data['num_peoples']
 
     def reindex(self):
+        # Для ускорения оценки используем BallTree индекс. Он умеет индексировать объекты по haversine метрике.
         # Индексируем только то, что нам нужно
         target_pairs = [
             (obj_num, o.radian_coords()) for obj_num, o in enumerate(self.objects)
@@ -108,6 +121,10 @@ class Evaluation:
             self.idx_to_num = dict()
 
     def get_metrics(self):
+        """
+        Здесь производится подсчет результата размещения учеников по школам.
+        По итогам возвращаются полученные метрики
+        """
         overplanned = 0
         all_planned = 0
         distances, weights = list(), list()
@@ -165,6 +182,12 @@ class Evaluation:
         return result
 
     def evaluate(self):
+        """
+        Разместить учеников по школам.
+        В каждый момент выбираются ближайшие по haversine метрике школы.
+        В них размещается столько учеников, сколько есть в секторе, либо есть свободных мест в школах.
+        Когда места в школах заканчиваются, производится переиндексация доступных школ.
+        """
         reindex_required = False
         no_objects = False
 
@@ -229,6 +252,14 @@ class Evaluation:
 
 class StopObjects:
     '''
+    Класс для учета недоступных для размещения территорий.
+    Каждая недоступная для размещения территория окружается окрестностью (ширина окрестности указывается в параметрах)
+    После чего полигон вместе с окрестностью считается невозможным для строительства.
+    Попавшие в полигон объекты считаются непостроенными.
+    Для ускорения расчета используется R-tree дерево.
+    Окрестность задается в километрах, после чего пересчитывается в дельта по широте, дельта по долготе.
+
+
     ВНИМАНИЕ!!!
     во всех геоданных сначала идет долгота, а потом широта. для haversine_distance нужно наоборот!!!
     для проверки нужно менять порядок широты с долготой
@@ -290,6 +321,9 @@ class StopObjects:
 
 
 class ObjectFactory:
+    """
+    Класс, который отвечает за генерацию набора целевых объектов по данным вектора.
+    """
     def __init__(self, max_num_objects, proj_types, squares: typing.List[Square], stop_objects: StopObjects):
         self.max_num_objects = max_num_objects
         self.proj_types = proj_types

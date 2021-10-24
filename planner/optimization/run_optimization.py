@@ -1,3 +1,6 @@
+"""
+Класс для консольного запуска оптимизации
+"""
 import argparse
 import logging
 

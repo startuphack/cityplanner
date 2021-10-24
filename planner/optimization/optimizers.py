@@ -14,7 +14,7 @@ from planner.utils.files import pickle_dump
 from planner.utils.math import is_pareto_efficient
 
 STOP_DISTANCES = {
-    'beach': 0.1,  # не менее 300 метров до пляжа
+    'beach': 0.1,  # не менее 100 метров до пляжа
     'gas-station': 0.05,
     'industrial-area': 0.05,
     'nuklear-zone': 0.2,
@@ -40,6 +40,9 @@ class OptimizationCallback:
 
 
 class SchoolOptimizer:
+    """
+    Оптимизатор расположения школ. Собирает все параметры вместе, запускает оптимизацию, сохраняет результаты
+    """
     def __init__(self,
                  squares_df,
                  school_projects,
@@ -75,6 +78,7 @@ class SchoolOptimizer:
     def _init_optimization(self):
         squares = []
 
+        # Считаем общее кол-во потенциальных учеников
         total_number_of_children = 0
         for num_peoples, geometry in self.squares_df[['customers_cnt_home', 'geometry']].values:
             centroid = geometry.centroid
@@ -84,6 +88,8 @@ class SchoolOptimizer:
             total_number_of_children += number_of_children
 
         print(f'pending place {total_number_of_children} children to schools')
+
+        # В среднем школа на 1000 учеников. Делаем 3x запас для различных вариантов размещения
         num_schools = int(np.ceil(total_number_of_children / 1000)) * 3
         stop_objects = M.StopObjects(self.stop_distances)
 
@@ -94,7 +100,8 @@ class SchoolOptimizer:
         squares_polygon = self.squares_df.unary_union
 
         required_schools = schools[schools.geometry.apply(lambda x: x.intersects(squares_polygon))]
-
+        # Учитываем текущие построенные школы и данные об их учениках.
+        # Исключаем текущих размещенных в школы учеников из необходимых для размещения
         existed_school_objects = list()
         for school_geom, number_of_pupils in required_schools[['geometry', 'PupilsQuantity']].values:
             school_geom_centroid = school_geom.centroid
@@ -104,7 +111,7 @@ class SchoolOptimizer:
         existed_evaluation = M.Evaluation(squares, existed_school_objects)
 
         existed_evaluation_results = existed_evaluation.evaluate()
-
+        # Обновляем данные секторов с учетом текущих построенных школ (Data.mos.ru)
         existed_evaluation.move_data_to_squares()
 
         logging.info(f'current schools data: {existed_evaluation_results}')
@@ -128,6 +135,10 @@ class SchoolOptimizer:
         return M.Evaluation(self.squares, [])
 
     def run_optimization(self, num_steps=1000):
+        """
+        Шаг за шагом выполняем оптимизацию
+        Через каждые self.step_batch шагов запускаем слушателей.
+        """
         if self.optimizer is None:
             self._init_optimization()
 
@@ -151,6 +162,9 @@ class SchoolOptimizer:
 
 
 class DrawFrontCallback(OptimizationCallback):
+    """
+    Этот callback отвечает за сохранение данных, по которым восстанавливаются точки парето-фронта.
+    """
     def __init__(self, target_path='.'):
         self.target_path = target_path
         os.makedirs(target_path, exist_ok=True)
@@ -160,6 +174,7 @@ class DrawFrontCallback(OptimizationCallback):
 
         points, metrics = zip(*history_data)
 
+        # Убираем заведомо неэффективные точки
         points_df = pd.DataFrame(map(lambda x: x.metrics, metrics))
         low_convenience = np.percentile(points_df['convenience'], q=50)
         low_cost = np.percentile(points_df['total-cost'], q=50)
@@ -172,6 +187,7 @@ class DrawFrontCallback(OptimizationCallback):
         points = np.asarray(points)[predicate]
 
         pareto_data = points_df[['convenience', 'total-cost']].values
+        # Оставляем только эффективные по парето точки
         pareto_mask = is_pareto_efficient(pareto_data)
 
         points_df = points_df[pareto_mask]

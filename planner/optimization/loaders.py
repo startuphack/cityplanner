@@ -1,3 +1,6 @@
+"""
+В этом файле собраны загрузчики различных данных, школы, железные дороги и т.п.
+"""
 import pandas as pd
 import gzip
 import json
@@ -9,6 +12,11 @@ from planner.utils.files import resources
 
 
 def load_schools(filename=resources / 'schools.zip'):
+    """
+    Загрузить данные о школах. Этот файл получен с data.mos.ru
+    :param filename: путь до файла с информацией о школах
+    :return: Geo-датафрейм с информацией о школах
+    """
     with zipfile.ZipFile(filename) as zf:
         with zf.open('schools.json') as sch_stream:
 
@@ -51,6 +59,10 @@ def load_schools(filename=resources / 'schools.zip'):
 
 
 def load_point_geometry(coords):
+    """
+    :param coords: Метод для получения геометрии по данным загрузочных эко-файлов
+    :return: Полигон или Точка
+    """
     if isinstance(coords[0], list):
         coords_data = list()
         for lat_long_row in coords:
@@ -59,7 +71,6 @@ def load_point_geometry(coords):
                 coords_data.append([float(long), float(lat)])
         return Polygon(coords_data)
     else:
-        #         print(coords)
         lat_long_row = coords
         if len(lat_long_row) > 1:
             lat, long = lat_long_row
@@ -80,6 +91,9 @@ ECO_NAMES = {
 
 
 def load_eco_data(filename=resources / 'moskow-eco.json.gz'):
+    """
+    Подгрузить экоданным Москвы. Они берутся с сайта https://www.kvartiravmoskve.ru/eko/
+    """
     with gzip.open(filename) as sch_stream:
         ecodata = json.load(sch_stream)
 
@@ -97,6 +111,9 @@ def load_eco_data(filename=resources / 'moskow-eco.json.gz'):
 
 
 def load_all_eco_data(filename_entries=None):
+    """
+    Загрузить все доступные экоданные
+    """
     filename_entries = filename_entries or ECO_NAMES
 
     dfs = list()
@@ -110,6 +127,10 @@ def load_all_eco_data(filename_entries=None):
 
 
 def load_buildings_data(filename=resources / 'moskow-buildings.json.gz'):
+    """
+    Загрузить данные строений. Данные получены с https://www.kvartiravmoskve.ru/eko/
+
+    """
     with gzip.open(filename) as sch_stream:
         ecodata = json.load(sch_stream)
 
@@ -125,22 +146,38 @@ def load_buildings_data(filename=resources / 'moskow-buildings.json.gz'):
 
 
 def load_highways(filename=resources / 'highways.gz.pq'):
+    """
+    Загрузить сохраненные данные о дорогах
+    """
+
     return geopandas.read_parquet(filename)
 
 
 def load_water(filename=resources / 'waters.gz.pq'):
+    """
+    Загрузить сохраненные данные о водоемах
+    """
     return geopandas.read_parquet(filename)
 
 
 def load_railroads(filename=resources / 'railroad.gz.pq'):
+    """
+    Загрузить сохраненные данные о железнодорожных путях
+    """
     return geopandas.read_parquet(filename)
 
 
 def load_parks(filename=resources / 'parks.gz.pq'):
+    """
+    Загрузить сохраненные данные о парках
+    """
     return geopandas.read_parquet(filename)
 
 
 def load_shapes(adm_id, filename=resources / 'all_shapes.gz.pq'):
+    """
+    Загрузить данные секторов по административному району
+    """
     shapes_df = geopandas.read_parquet(filename)
     shapes_df = shapes_df[shapes_df.adm_zid == adm_id].copy()
     return shapes_df
