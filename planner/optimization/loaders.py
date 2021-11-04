@@ -174,10 +174,21 @@ def load_parks(filename=resources / 'parks.gz.pq'):
     return geopandas.read_parquet(filename)
 
 
-def load_shapes(adm_id, filename=resources / 'all_shapes.gz.pq'):
+def load_shapes(adm_id: int = None, filename=resources / 'all_shapes.gz.pq'):
     """
     Загрузить данные секторов по административному району
     """
     shapes_df = geopandas.read_parquet(filename)
-    shapes_df = shapes_df[shapes_df.adm_zid == adm_id].copy()
+    if adm_id is not None:
+        shapes_df = shapes_df[shapes_df.adm_zid == adm_id].copy()
     return shapes_df
+
+
+def load_adm_zones(adm_id: int = None, filename=resources / 'adm_zones.gz.pq'):
+    """
+    Загрузить данные административных районов
+    """
+    adm_zones_df = geopandas.read_parquet(filename)
+    if adm_id is not None:
+        adm_zones_df = adm_zones_df[adm_zones_df.adm_zid == adm_id].copy()
+    return adm_zones_df

@@ -9,9 +9,11 @@ import pydeck as pdk
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from sklearn.neighbors import BallTree
 from streamlit import session_state as state
 from streamlit_plotly_events import plotly_events
 from planner.utils.files import pickle_load
+from planner.optimization import loaders
 
 ICON_URL = "https://img.icons8.com/plasticine/100/000000/marker.png"
 
@@ -35,7 +37,15 @@ def load_data():
     sorted_names = sorted(adm_names.items(), key=lambda x: mtimes_index.get(x[0], 0), reverse=True)
     adm_names = dict(sorted_names)
 
-    return dict(adm_names=adm_names)
+    schools = loaders.load_schools()
+    schools_idx = BallTree(pd.DataFrame({'x': schools.geometry.x, 'y': schools.geometry.y}), metric='haversine')
+
+    return dict(
+        adm_names=adm_names,
+        shapes=loaders.load_shapes(),
+        adm_zones=loaders.load_adm_zones(),
+        schools_idx=schools_idx,
+    )
 
 
 data = load_data()
@@ -155,6 +165,9 @@ if len(selected_points) == 1:
     )
 
 
+shapes = data['shapes'][data['shapes'].adm_zid == (int(state["region_value"]))]
+adm_zone = data['adm_zones'][data['adm_zones'].adm_zid == int(state['region_value'])]
+
 icon_data = {
     "url": ICON_URL,
     "width": 128,
@@ -162,11 +175,6 @@ icon_data = {
     "anchorY": 128,
 }
 map_df["icon_data"] = pd.Series(icon_data for _ in range(map_df.shape[0]))
-
-if map_df.shape[0] > 1:
-    view_state = pdk.data_utils.compute_view(map_df[["lon", "lat"]], 1.1)
-else:
-    view_state = pdk.ViewState(longitude=37.618423, latitude=55.751244, zoom=10, pitch=0)
 
 icon_layer = pdk.Layer(
     type="IconLayer",
@@ -178,9 +186,36 @@ icon_layer = pdk.Layer(
     pickable=True,
 )
 
+borders_layer = pdk.Layer(
+    "GeoJsonLayer",
+    adm_zone,
+    stroked=True,
+    filled=False,
+    get_line_width=20,
+    get_line_color=[189, 0, 38],
+)
+
+# находим расстояние до ближайшей школы для каждого квадрата
+shapes_df = pd.DataFrame({'x': shapes.geometry.centroid.x, 'y': shapes.geometry.centroid.y})
+dist, _ = data['schools_idx'].query(shapes_df)
+
+grid_layer = pdk.Layer(
+    "GridLayer",
+    pd.DataFrame({
+        'coords': shapes.geometry.centroid.map(lambda p: [p.x, p.y]),
+        'weight': dist.ravel() * shapes['customers_cnt_home'],
+    }),
+    opacity=0.1,
+    cell_size=500,
+    get_position="coords",
+    get_color_weight="weight",
+)
+
+view_state = pdk.data_utils.compute_view(adm_zone.geometry.convex_hull.exterior.iloc[0].coords, 1.1)
+
 st.pydeck_chart(
     pdk.Deck(
-        layers=[icon_layer],
+        layers=[borders_layer, grid_layer, icon_layer],
         initial_view_state=view_state,
         tooltip={"text": "Кол-во учеников: {n}"},
         map_style="mapbox://styles/mapbox/streets-v11",
