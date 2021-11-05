@@ -6,12 +6,13 @@ import typing
 import numpy as np
 import pandas as pd
 import plotly.express as px
-
+from shapely.geometry import Point
 import planner.optimization.model as M
 from planner.optimization.loaders import load_schools
 from planner.optimization.mocma import Optimizer
 from planner.utils.files import pickle_dump
 from planner.utils.math import is_pareto_efficient
+from sklearn.preprocessing import QuantileTransformer
 
 STOP_DISTANCES = {
     'beach': 0.1,  # не менее 100 метров до пляжа
@@ -96,17 +97,18 @@ class SchoolOptimizer:
 
             total_number_of_children += number_of_children
 
+
         print(f'pending place {total_number_of_children} children to schools')
 
         # В среднем школа на 1000 учеников. Делаем 3x запас для различных вариантов размещения
         num_schools = int(np.ceil(total_number_of_children / 1000)) * 3
         stop_objects = M.StopObjects(self.stop_distances)
 
-        factory = M.ObjectFactory(num_schools, proj_types=self.school_projects, squares=squares,
+        squares_polygon = self.squares_df.unary_union
+
+        factory = M.ObjectFactory(num_schools, squares_polygon = squares_polygon, proj_types=self.school_projects, squares=squares,
                                   stop_objects=stop_objects)
         schools = load_schools()
-
-        squares_polygon = self.squares_df.unary_union
 
         required_schools = schools[schools.geometry.apply(lambda x: x.intersects(squares_polygon))]
         # Учитываем текущие построенные школы и данные об их учениках.
@@ -198,6 +200,7 @@ class DrawFrontCallback(OptimizationCallback):
 
         # Убираем заведомо неэффективные точки
         points_df = pd.DataFrame(map(lambda x: x.metrics, metrics))
+        points_df['usability']=100 * QuantileTransformer().fit_transform(points_df['convenience'].values.reshape(-1,1))[:,0]
         low_convenience = np.percentile(points_df['convenience'], q=50)
         low_cost = np.percentile(points_df['total-cost'], q=50)
         predicate = (points_df.convenience > low_convenience) | (points_df['total-cost'] > low_cost)
@@ -249,7 +252,7 @@ class DrawFrontCallback(OptimizationCallback):
         plot_df = plot_df.round(2)
 
         fig = px.scatter(plot_df, x='стоимость, млрд', y='среднее расстояние, км',
-                         color='неудобство', hover_data=plot_df.columns, size='size')
+                         color='удобство, %', hover_data=plot_df.columns, size='size')
         #
         fig.write_html(f'{self.target_path}/pareto_{algorithm.fitness_steps}.html')
 

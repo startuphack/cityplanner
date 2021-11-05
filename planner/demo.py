@@ -144,7 +144,7 @@ fig = px.scatter(
     plot_df,
     x="стоимость, млрд",
     y="среднее расстояние, км",
-    color="неудобство",
+    color="удобство, %",
     hover_data=plot_df.columns,
     size="size",
     # color_continuous_scale="RdBu",

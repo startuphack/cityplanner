@@ -1,3 +1,4 @@
+from shapely.geometry import Point
 import pandas as pd
 import typing
 from math import radians
@@ -74,6 +75,7 @@ class Evaluation:
             'required': 'необходимо метст',
             'planned': 'запланировано мест',
             'number-of-objects': 'число объектов',
+            'usability':'удобство, %'
         }
 
         for p in percentiles_for_evaluation:
@@ -324,8 +326,9 @@ class ObjectFactory:
     """
     Класс, который отвечает за генерацию набора целевых объектов по данным вектора.
     """
-    def __init__(self, max_num_objects, proj_types, squares: typing.List[Square], stop_objects: StopObjects):
+    def __init__(self, max_num_objects, squares_polygon, proj_types, squares: typing.List[Square], stop_objects: StopObjects):
         self.max_num_objects = max_num_objects
+        self.squares_polygon = squares_polygon
         self.proj_types = proj_types
         self.squares = squares
 
@@ -362,7 +365,9 @@ class ObjectFactory:
                 if self.stop_objects:
                     is_stopped = bool(self.stop_objects.is_stopped(obj_lat, obj_lng))
 
-                if not is_stopped:
+                intersects = self.squares_polygon.intersects(Point(obj_lng, obj_lat))
+
+                if not is_stopped and intersects:
                     proj = self.proj_types[obj_type]
                     obj = TargetObject(obj_lng, obj_lat, proj['num_peoples'], proj)
 
