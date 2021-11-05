@@ -110,7 +110,7 @@ class SchoolOptimizer:
             proj_types=self.school_projects,
             squares=squares,
             stop_objects=stop_objects,
-            # squares_polygon = squares_polygon,
+            squares_polygon = squares_polygon,
         )
         schools = load_schools()
 
