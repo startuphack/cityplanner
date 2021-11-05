@@ -1,4 +1,6 @@
 import planner.optimization.loaders as L
+from planner.utils.geo_utils import create_limits_df
+from planner.utils.files import resources
 
 
 def test_load_schools():
@@ -30,3 +32,9 @@ def test_load_all_eco_data():
     all_eco_data = L.load_all_eco_data()
 
     assert len(all_eco_data) > 0
+
+
+
+def test_load_osm_data():
+    create_limits_df('Moscow', tags = {'cemetery':True}, obj_type='cemetery')
+    assert (resources/'cemetery.gz.pq').exists()

@@ -1,7 +1,8 @@
 import numpy as np
+import osmnx
 from scipy.optimize import newton_krylov
 from sklearn.metrics.pairwise import haversine_distances
-
+from .files import resources
 EARTH_SIZE = 6371  # km
 
 
@@ -39,6 +40,23 @@ def find_buffer_width(center, target_buffer_km):
 
     return result
 
+
+def dump_osmnx_object(osmnx_df, obj_type):
+    osmnx_df = osmnx_df.reset_index()
+    osmnx_df['data_type'] = obj_type
+    osmnx_df[['name', 'data_type', 'geometry']].to_parquet(f'{resources}/{obj_type}.gz.pq', compression='gzip')
+
+
+def create_limits_df(region, tags, obj_type):
+    '''
+    Создать и сохранить датафрейм с ограничениями по типу объекта osm
+    :param region: Название региона, например, Moskow
+    :param tags: osm таги
+    :param obj_type: тип объекта для сохранения
+
+    '''
+    osm_limit_data = osmnx.geometries_from_place(region, tags=tags)
+    dump_osmnx_object(osm_limit_data, obj_type)
 
 if __name__ == '__main__':
     root = find_buffer_width([56, 30], 0.003)

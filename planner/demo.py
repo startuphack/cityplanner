@@ -7,6 +7,7 @@ import subprocess
 
 import pydeck as pdk
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import streamlit as st
 from sklearn.neighbors import BallTree
@@ -38,7 +39,8 @@ def load_data():
     adm_names = dict(sorted_names)
 
     schools = loaders.load_schools()
-    schools_idx = BallTree(pd.DataFrame({'x': schools.geometry.x, 'y': schools.geometry.y}), metric='haversine')
+
+    schools_idx = BallTree(pd.DataFrame({'x': np.radians(schools.geometry.x), 'y': np.radians(schools.geometry.y)}), metric='haversine')
 
     return dict(
         adm_names=adm_names,
@@ -196,7 +198,7 @@ borders_layer = pdk.Layer(
 )
 
 # находим расстояние до ближайшей школы для каждого квадрата
-shapes_df = pd.DataFrame({'x': shapes.geometry.centroid.x, 'y': shapes.geometry.centroid.y})
+shapes_df = pd.DataFrame({'x': np.radians(shapes.geometry.centroid.x), 'y': np.radians(shapes.geometry.centroid.y)})
 dist, _ = data['schools_idx'].query(shapes_df)
 
 grid_layer = pdk.Layer(

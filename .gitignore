@@ -17,3 +17,4 @@ resources/opt
 results
 *log
 *.out
+cache
