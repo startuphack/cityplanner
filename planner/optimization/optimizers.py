@@ -97,7 +97,6 @@ class SchoolOptimizer:
 
             total_number_of_children += number_of_children
 
-
         print(f'pending place {total_number_of_children} children to schools')
 
         # В среднем школа на 1000 учеников. Делаем 3x запас для различных вариантов размещения
@@ -106,8 +105,13 @@ class SchoolOptimizer:
 
         squares_polygon = self.squares_df.unary_union
 
-        factory = M.ObjectFactory(num_schools, squares_polygon = squares_polygon, proj_types=self.school_projects, squares=squares,
-                                  stop_objects=stop_objects)
+        factory = M.ObjectFactory(
+            num_schools,
+            proj_types=self.school_projects,
+            squares=squares,
+            stop_objects=stop_objects,
+            # squares_polygon = squares_polygon,
+        )
         schools = load_schools()
 
         required_schools = schools[schools.geometry.apply(lambda x: x.intersects(squares_polygon))]
@@ -200,7 +204,8 @@ class DrawFrontCallback(OptimizationCallback):
 
         # Убираем заведомо неэффективные точки
         points_df = pd.DataFrame(map(lambda x: x.metrics, metrics))
-        points_df['usability']=100 * QuantileTransformer().fit_transform(points_df['convenience'].values.reshape(-1,1))[:,0]
+        points_df['usability'] = 100 * QuantileTransformer().fit_transform(
+            points_df['convenience'].values.reshape(-1, 1))[:, 0]
         low_convenience = np.percentile(points_df['convenience'], q=50)
         low_cost = np.percentile(points_df['total-cost'], q=50)
         predicate = (points_df.convenience > low_convenience) | (points_df['total-cost'] > low_cost)

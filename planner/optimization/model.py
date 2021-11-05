@@ -326,7 +326,7 @@ class ObjectFactory:
     """
     Класс, который отвечает за генерацию набора целевых объектов по данным вектора.
     """
-    def __init__(self, max_num_objects, squares_polygon, proj_types, squares: typing.List[Square], stop_objects: StopObjects):
+    def __init__(self, max_num_objects, proj_types, squares: typing.List[Square], stop_objects: StopObjects, squares_polygon = None):
         self.max_num_objects = max_num_objects
         self.squares_polygon = squares_polygon
         self.proj_types = proj_types
@@ -365,7 +365,7 @@ class ObjectFactory:
                 if self.stop_objects:
                     is_stopped = bool(self.stop_objects.is_stopped(obj_lat, obj_lng))
 
-                intersects = self.squares_polygon.intersects(Point(obj_lng, obj_lat))
+                intersects = (self.squares_polygon is None) or (self.squares_polygon.intersects(Point(obj_lng, obj_lat)))
 
                 if not is_stopped and intersects:
                     proj = self.proj_types[obj_type]
