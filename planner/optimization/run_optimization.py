@@ -23,7 +23,7 @@ if __name__ == '__main__':
     )
     parser.add_argument("--adm-id", default=114, type=int, help="adm id")
     parser.add_argument("--results-path", default='results', type=str, help="path to dump data")
-    parser.add_argument("--num-steps", default=300, type=int, help="number of optimization steps")
+    parser.add_argument("--num-steps", default=500, type=int, help="number of optimization steps")
     parser.add_argument("--step-batch", default=30, type=int, help="number of steps between dump data")
     parser.add_argument("--population-size", default=200, type=int, help="mocma population size")
 

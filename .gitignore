@@ -18,3 +18,4 @@ results
 *log
 *.out
 cache
+*lock*
