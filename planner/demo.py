@@ -275,5 +275,6 @@ annotated_text(
     annotation(f'< {levels[5]:.1f}', background='#f03b20'),
     annotation(f'> {levels[5]:.1f}', background='#bd0026'),
 )
-st.subheader('Проекты')
-st.dataframe(pd.DataFrame({'Проект': [o.project['name'] for o in objects], 'Кол-во': 1}).groupby('Проект').count())
+if objects:
+    st.subheader('Проекты')
+    st.dataframe(pd.DataFrame({'Проект': [o.project['name'] for o in objects], 'Кол-во': 1}).groupby('Проект').count())
