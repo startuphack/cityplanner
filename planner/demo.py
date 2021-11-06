@@ -3,6 +3,7 @@ import json
 import time
 import re
 import pathlib
+import itertools
 import subprocess
 
 import pydeck as pdk
@@ -203,6 +204,8 @@ if len(selected_points) == 1:
         [[*obj.coords(), obj.num_peoples] for obj in objects],
         columns=["lat", "lon", "n"],
     )
+else:
+    objects = []
 
 shapes = data['shapes'][data['shapes'].adm_zid == (int(state["region_value"]))]
 adm_zone = data['adm_zones'][data['adm_zones'].adm_zid == int(state['region_value'])]
@@ -263,7 +266,7 @@ st.pydeck_chart(
 )
 
 levels = (dist.ravel() * shapes['customers_cnt_home'] / 1000).quantile(np.linspace(0, 1, 6)).to_list()
-st.text('Суммарное расстояние до школы для учеников сектора на 1000 человек')
+st.caption('Суммарное расстояние до школы для учеников сектора на 1000 человек')
 annotated_text(
     annotation(f'< {levels[1]:.1f}', background='#ffffb2'),
     annotation(f'< {levels[2]:.1f}', background='#fed976'),
@@ -272,3 +275,5 @@ annotated_text(
     annotation(f'< {levels[5]:.1f}', background='#f03b20'),
     annotation(f'> {levels[5]:.1f}', background='#bd0026'),
 )
+st.subheader('Проекты')
+st.dataframe(pd.DataFrame({'Проект': [o.project['name'] for o in objects], 'Кол-во': 1}).groupby('Проект').count())
