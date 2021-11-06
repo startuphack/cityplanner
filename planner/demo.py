@@ -21,7 +21,6 @@ ICON_URL = "https://img.icons8.com/plasticine/100/000000/marker.png"
 st.set_page_config(layout="wide")
 st.title("Планирование школ")
 
-
 state.setdefault("optimizer_process", None)
 
 
@@ -40,7 +39,8 @@ def load_data():
 
     schools = loaders.load_schools()
 
-    schools_idx = BallTree(pd.DataFrame({'x': np.radians(schools.geometry.x), 'y': np.radians(schools.geometry.y)}), metric='haversine')
+    schools_idx = BallTree(pd.DataFrame({'x': np.radians(schools.geometry.x), 'y': np.radians(schools.geometry.y)}),
+                           metric='haversine')
 
     return dict(
         adm_names=adm_names,
@@ -142,12 +142,48 @@ factory = optimizer_data["factory"]
 point_col = plot_df["point"]
 del plot_df["point"]
 
+hover_list = list()
+hover_columns = [
+    'число объектов',
+    'общая стоимость реализации, млрд',
+    'среднее расстояние до школы для ученика, км',
+    'удобство, %',
+    'необходимо мест',
+    'запланировано мест',
+    'перцентиль(50) расстояния до объекта',
+    'перцентиль(70) расстояния до объекта',
+    'перцентиль(90) расстояния до объекта',
+    'перцентиль(95) расстояния до объекта',
+]
+
+rename_columns = {
+    "стоимость, млрд": "общая стоимость реализации, млрд",
+    "среднее расстояние, км": "среднее расстояние до школы для ученика, км",
+    "необходимо метст": "необходимо мест",
+}
+
+plot_df.rename(columns=rename_columns, inplace=True)
+plot_df['obj-num'] = plot_df['число объектов'].apply(lambda x: f'число школ в проекте = {x}')
+
+
 fig = px.scatter(
     plot_df,
-    x="стоимость, млрд",
-    y="среднее расстояние, км",
+    x="общая стоимость реализации, млрд",
+    y="среднее расстояние до школы для ученика, км",
     color="удобство, %",
-    hover_data=plot_df.columns,
+    hover_name='obj-num',
+    hover_data={
+        'общая стоимость реализации, млрд': True,
+        'среднее расстояние до школы для ученика, км': True,
+        'size': False,
+        'удобство, %': True,
+        'необходимо мест': True,
+        'запланировано мест': True,
+        'перцентиль(50) расстояния до объекта': True,
+        'перцентиль(70) расстояния до объекта': True,
+        'перцентиль(90) расстояния до объекта': True,
+        'перцентиль(95) расстояния до объекта': True,
+    },
     size="size",
     # color_continuous_scale="RdBu",
 )
@@ -165,7 +201,6 @@ if len(selected_points) == 1:
         [[*obj.coords(), obj.num_peoples] for obj in objects],
         columns=["lat", "lon", "n"],
     )
-
 
 shapes = data['shapes'][data['shapes'].adm_zid == (int(state["region_value"]))]
 adm_zone = data['adm_zones'][data['adm_zones'].adm_zid == int(state['region_value'])]
