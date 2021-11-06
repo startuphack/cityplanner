@@ -15,7 +15,9 @@ from streamlit import session_state as state
 from streamlit_plotly_events import plotly_events
 from planner.utils.files import pickle_load
 from planner.optimization import loaders
+from annotated_text import annotated_text, annotation
 
+EARTH_SIZE = 6371  # km
 ICON_URL = "https://img.icons8.com/plasticine/100/000000/marker.png"
 
 st.set_page_config(layout="wide")
@@ -235,6 +237,7 @@ borders_layer = pdk.Layer(
 # находим расстояние до ближайшей школы для каждого квадрата
 shapes_df = pd.DataFrame({'x': np.radians(shapes.geometry.centroid.x), 'y': np.radians(shapes.geometry.centroid.y)})
 dist, _ = data['schools_idx'].query(shapes_df)
+dist *= EARTH_SIZE
 
 grid_layer = pdk.Layer(
     "GridLayer",
@@ -257,4 +260,15 @@ st.pydeck_chart(
         tooltip={"text": "Кол-во учеников: {n}"},
         map_style="mapbox://styles/mapbox/streets-v11",
     )
+)
+
+levels = (dist.ravel() * shapes['customers_cnt_home'] / 1000).quantile(np.linspace(0, 1, 6)).to_list()
+st.text('Суммарное расстояние до школы для учеников сектора на 1000 человек')
+annotated_text(
+    annotation(f'< {levels[1]:.1f}', background='#ffffb2'),
+    annotation(f'< {levels[2]:.1f}', background='#fed976'),
+    annotation(f'< {levels[3]:.1f}', background='#feb24c'),
+    annotation(f'< {levels[4]:.1f}', background='#fd8d3c'),
+    annotation(f'< {levels[5]:.1f}', background='#f03b20'),
+    annotation(f'> {levels[5]:.1f}', background='#bd0026'),
 )
